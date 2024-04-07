@@ -2,6 +2,15 @@
 const typeDefs = `
   type Query {
     me: User
+    searchGoogleBooks(query: String!): [Book]
+  }
+  type Book {
+    bookId: ID!
+    authors: [String]
+    description: String!
+    image: String
+    link: String
+    title: String!
   }
 
   type Mutation {

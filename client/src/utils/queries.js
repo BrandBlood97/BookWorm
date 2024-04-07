@@ -18,3 +18,16 @@ export const GET_ME = gql`
     }
   }
 `;
+
+export const SEARCH_GOOGLE_BOOKS = gql`
+  query SearchGoogleBooks($query: String!) {
+    searchGoogleBooks(query: $query) {
+      bookId
+      title
+      authors
+      description
+      image
+      link
+    }
+  }
+`;

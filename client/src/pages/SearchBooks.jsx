@@ -1,64 +1,60 @@
 import { useState } from 'react';
 import { Container, Col, Form, Button, Card, Row } from 'react-bootstrap';
-import { useMutation } from '@apollo/client';
+import { useMutation, useLazyQuery } from '@apollo/client';
 
 import Auth from '../utils/auth';
 import { saveBookIds, getSavedBookIds } from '../utils/localStorage';
-import { SAVE_BOOK } from '../utils/mutations'; // Ensure you have this mutation defined
+import { SAVE_BOOK } from '../utils/mutations';
+import { SEARCH_GOOGLE_BOOKS } from '../utils/queries'; // Ensure this is defined
 
 const SearchBooks = () => {
-  const [searchedBooks, setSearchedBooks] = useState([]);
   const [searchInput, setSearchInput] = useState('');
+  const [searchedBooks, setSearchedBooks] = useState([]);
   const [savedBookIds, setSavedBookIds] = useState(getSavedBookIds());
 
-  const [saveBook] = useMutation(SAVE_BOOK, {
+  const [getBooks, { loading: searchLoading, error: searchError }] = useLazyQuery(SEARCH_GOOGLE_BOOKS, {
+    variables: { query: searchInput },
     onCompleted: (data) => {
-      // Assuming your SAVE_BOOK mutation updates the user's saved books
-      setSavedBookIds([...savedBookIds, data.saveBook.bookId]);
+      const bookData = data.searchGoogleBooks.map((book) => ({
+        bookId: book.bookId, // Ensure your schema uses bookId
+        authors: book.authors,
+        title: book.title,
+        description: book.description,
+        image: book.image,
+      }));
+      setSearchedBooks(bookData);
+    },
+  });
+
+  const [saveBook, { loading: saveLoading, error: saveError }] = useMutation(SAVE_BOOK, {
+    onCompleted: (data) => {
+      // Update savedBookIds state and localStorage
+      const updatedSavedBookIds = [...savedBookIds, data.saveBook.bookId];
+      setSavedBookIds(updatedSavedBookIds);
+      saveBookIds(updatedSavedBookIds);
     },
   });
 
   const handleFormSubmit = async (event) => {
     event.preventDefault();
-
-    if (!searchInput) {
-      return false;
-    }
-
-    try {
-      // Assuming you replace this with a GraphQL query if needed or use a local state
-      const items = await searchGoogleBooks(searchInput); // Placeholder for actual search function
-
-      const bookData = items.map((book) => ({
-        bookId: book.id,
-        authors: book.volumeInfo.authors || ['No author to display'],
-        title: book.volumeInfo.title,
-        description: book.volumeInfo.description,
-        image: book.volumeInfo.imageLinks?.thumbnail || '',
-      }));
-
-      setSearchedBooks(bookData);
-      setSearchInput('');
-    } catch (err) {
-      console.error(err);
-    }
+    if (!searchInput) return;
+    getBooks(); // Trigger the search
   };
 
   const handleSaveBook = async (bookId) => {
     const bookToSave = searchedBooks.find((book) => book.bookId === bookId);
-
-    if (!Auth.loggedIn()) {
-      return false;
-    }
+    if (!bookToSave || !Auth.loggedIn()) return;
 
     try {
       await saveBook({
-        variables: { input: bookToSave },
+        variables: { input: { ...bookToSave, bookId } },
       });
     } catch (err) {
-      console.error(err);
+      console.error('Error saving the book:', err);
     }
   };
+
+  // Error and loading states can be handled as per your application's error handling strategy
 
   return (
     <>
